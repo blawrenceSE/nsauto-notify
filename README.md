@@ -14,6 +14,7 @@ Currently requires certain environment variables:
 - `SLACK_WEBHOOK` - Slack generated webhook for sending incoming messages
   - Note that most of the configuration for how the message looks is contained here _except_ the icon and name of the message sender. Those should be configured within your individual slack instance.
 - `SLACK_CHANNEL` - specify what channel the slack notification will be sent to. Optional if slack integration is not active.
+- `GROUP_ID` - need to be explicit about app group id
 
 ## Other things to keep in mind
 
