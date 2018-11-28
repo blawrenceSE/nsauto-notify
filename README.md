@@ -19,10 +19,11 @@ Currently requires certain environment variables:
 
 There is a 30 second delay built in to the script. You can adjust how often it checks for a new assessment by changing the `sleep` time
 
-sample docker setup:
+sample docker setup:\n
 `docker build . -t <image_name>`
 
-```docker run \
+```
+docker run \
     -e MONITOR_KEY=<monitor_key> \
     -e APP_OS=android \
     -e SLACK_WEBHOOK=https://hooks.slack.com/services/<webhook information> \
