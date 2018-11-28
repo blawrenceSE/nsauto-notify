@@ -1,0 +1,7 @@
+*config*
+auto_env/
+.vscode/
+*test*
+*pseudo*
+*.sh
+.env
