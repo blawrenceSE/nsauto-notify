@@ -33,6 +33,7 @@ docker run \
     -e GROUP_ID="<group-id>" \
     -e PYTHONBUFFERED=0 \
     --name <container name> \
+    -d \
     auto-notify
 
 ```
