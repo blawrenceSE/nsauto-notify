@@ -8,5 +8,4 @@ RUN pip install --upgrade pip requests
 
 ADD auto-monitor.py /
 
-
 CMD python auto-monitor.py

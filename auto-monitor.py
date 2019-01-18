@@ -13,6 +13,7 @@ api_base_url = "https://lab-api.nowsecure.com/app"
 app_os = '/' + os.environ["APP_OS"]
 app_package = '/' + os.environ["APP_PACKAGE"]
 slack_channel = os.environ["SLACK_CHANNEL"]
+notify_success = os.environ["NOTIFY_SUCCESS"]
 
 # access
 la_token = os.environ["MONITOR_KEY"]
@@ -69,29 +70,32 @@ def monitor_for_report():
                 continue
             # check to make sure the new assessment has finished entirely
             if ((str(current_list[num_assessments]["status"]["static"]["state"]) == "completed") & (str(current_list[num_assessments]["status"]["dynamic"]["state"]) == "completed")):
-                print "New completed assesssment, sending report"
-                # get the new assessment
-                report_url = app_url + \
-                    "/assessment/" + \
-                    str(current_list[num_assessments]["task"]) + \
-                    "/results" + "?group=" + str(os.environ["GROUP_ID"])
-                r3 = requests.get(report_url, headers=headers)
-                parsed_report = json.loads(r3.text)
-                issue_count = count_errors(parsed_report)
-                # sends slack message if set to true
-                if slack_summary_active:
-                    code = send_slack_message(summary_slack_message(
-                        parsed_report, current_list, num_assessments, issue_count))
-                    if code == 200:
-                        print "Slack Message sent successfully"
-                    else:
-                        print "Error, slack message not sent - error code " + code
+                if notify_success:
+                    print "New completed assesssment, sending report"
+                    # get the new assessment
+                    report_url = app_url + \
+                        "/assessment/" + \
+                        str(current_list[num_assessments]["task"]) + \
+                        "/results" + "?group=" + str(os.environ["GROUP_ID"])
+                    r3 = requests.get(report_url, headers=headers)
+                    parsed_report = json.loads(r3.text)
+                    issue_count = count_errors(parsed_report)
+                    # sends slack message if set to true
+                    if slack_summary_active:
+                        code = send_slack_message(summary_slack_message(
+                            parsed_report, current_list, num_assessments, issue_count))
+                        if code == 200:
+                            print "Slack Message sent successfully"
+                        else:
+                            print "Error, slack message not sent - error code " + code
 
-                # checks for automation errors - future functionality
-                # if(automation_error_checking == True):
-                    # error_notify(assessment_url + str(current_list[num_assessments]["task"]))
+                    # checks for automation errors - future functionality
+                    # if(automation_error_checking == True):
+                        # error_notify(assessment_url + str(current_list[num_assessments]["task"]))
 
-                # increment assessment counter
+                    # increment assessment counter
+                else:
+                    print("successful report, but no message sent")
                 num_assessments = num_assessments + 1
             else:
                 # There is a new assessment started, but has not completed both dynamic and static
