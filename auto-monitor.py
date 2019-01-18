@@ -4,6 +4,7 @@ import os
 import time
 import requests
 import datetime
+from time_diff import time_diff_seconds
 
 # set base URL's to access API's
 api_base_url = "https://lab-api.nowsecure.com/app"
@@ -61,7 +62,10 @@ def monitor_for_report():
                     continue
             except KeyError:
                 print("no cancellation data yet")
-
+            if (time_diff_seconds(str(current_list[num_assessments]["created"])) > 7600):
+                send_slack_message(error_notify_message(str(current_list[num_assessments]["task"]), str(
+                    current_list[num_assessments]["package"])))
+                num_assessments = num_assessments + 1
             # check to see if something failed
             if ((str(current_list[num_assessments]["status"]["static"]["state"]) == "failed") or (str(current_list[num_assessments]["status"]["dynamic"]["state"]) == "failed")):
                 send_slack_message(error_notify_message(str(current_list[num_assessments]["task"]), str(
