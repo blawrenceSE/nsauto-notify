@@ -121,7 +121,7 @@ def time_diff(start_time):
 
 def error_notify_message(task_id, application_name):
     slack_data = {
-        "text": "An application assessment has terminated in a less than optimal state.\nApplication Name: " + application_name + "\nTask ID: " + task_id,
+        "text": "An application assessment has failed.\nApplication Name: " + application_name + "\nTask ID: " + task_id,
         "channel": slack_channel,
     }
     return slack_data
