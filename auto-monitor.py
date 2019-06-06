@@ -26,9 +26,15 @@ app_url = api_base_url + app_os + app_package
 # Set authorization for Lab Auto API
 token = "Bearer " + la_token
 headers = {'Authorization': token}
-
+app_id = ""
 # turn different functionalities on or off
 slack_summary_active = True
+
+
+def change_app_id(id):
+    global app_id
+    app_id = id
+    return app_id
 
 
 def monitor_for_report():
@@ -39,12 +45,18 @@ def monitor_for_report():
     # Get a list of assessments from the Lab Auto API and parse the JSON data
     r = requests.get(assessment_url, headers=headers)
     assessment_list = json.loads(r.text)
+    completed_assessments = []
+    # set app id for URL generation
+    change_app_id(assessment_list[0]["application"])
+    for report in assessment_list:
+        completed_assessments.append(report["task"])
 
     # set baseline for current assessments
     num_assessments = len(assessment_list)
-
+    need_processing = []
     # runs continuously
     while True:
+
         # polls the API at a set interval
         time.sleep(5)
         # pulls the list of assessments
@@ -55,59 +67,48 @@ def monitor_for_report():
         print "Current assessment: " + str(len(current_list))
         if len(current_list) > num_assessments:
             print "New Assessment!"
-            # check if cancelled
-            try:
-                if (current_list[num_assessments]["cancelled"] == True):
+            # find new assessment
+            for report in current_list:
+                if (report["task"] not in completed_assessments) and (report["task"] not in need_processing):
+                    need_processing.append(report["task"])
+
+            for task in need_processing:
+                if process_assessment(task):
+                    need_processing.remove(task)
+                    completed_assessments.append(task)
                     num_assessments = num_assessments + 1
-                    continue
-            except KeyError:
-                print("no cancellation data yet")
-            if (time_diff_seconds(str(current_list[num_assessments]["created"])) > 7600):
-                send_slack_message(error_notify_message(str(current_list[num_assessments]["task"]), str(
-                    current_list[num_assessments]["package"])))
-                num_assessments = num_assessments + 1
-            # check to see if something failed
-            if ((str(current_list[num_assessments]["status"]["static"]["state"]) == "failed") or (str(current_list[num_assessments]["status"]["dynamic"]["state"]) == "failed")):
-                send_slack_message(error_notify_message(str(current_list[num_assessments]["task"]), str(
-                    current_list[num_assessments]["package"])))
-                num_assessments = num_assessments + 1
-                continue
-            # check to make sure the new assessment has finished entirely
-            if ((str(current_list[num_assessments]["status"]["static"]["state"]) == "completed") & (str(current_list[num_assessments]["status"]["dynamic"]["state"]) == "completed")):
-                if notify_success:
-                    print "New completed assesssment, sending report"
-                    # get the new assessment
-                    report_url = app_url + \
-                        "/assessment/" + \
-                        str(current_list[num_assessments]["task"]) + \
-                        "/results" + "?group=" + str(os.environ["GROUP_ID"])
-                    r3 = requests.get(report_url, headers=headers)
-                    parsed_report = json.loads(r3.text)
-                    issue_count = count_errors(parsed_report)
-                    # sends slack message if set to true
-                    if slack_summary_active:
-                        code = send_slack_message(summary_slack_message(
-                            parsed_report, current_list, num_assessments, issue_count))
-                        if code == 200:
-                            print "Slack Message sent successfully"
-                        else:
-                            print "Error, slack message not sent - error code " + code
 
-                    # checks for automation errors - future functionality
-                    # if(automation_error_checking == True):
-                        # error_notify(assessment_url + str(current_list[num_assessments]["task"]))
 
-                    # increment assessment counter
+def process_assessment(task_id):
+    report_url = app_url + "/assessment/" + \
+        str(task_id) + "/report?group=" + str(os.environ["GROUP_ID"])
+    r = requests.get(report_url, headers=headers)
+    if r.status_code == 404:
+        return False
+    report_info = json.loads(r.text)
+    # check if cancelled
+    if (report_info["dynamic"]["state"] == "cancelled"):
+        return True
+    if (str(report_info["dynamic"]["state"]) == "processing") and (str(report_info["static"]["state"]) == "processing"):
+        return False
+    # checks to see if assessment has taken too long and just errors it out, also looks for static/dynamic failure
+    if (time_diff_seconds(str(report_info["dynamic"]["created"])) > 0) or ((str(report_info["dynamic"]["state"]) == "failed") or (str(report_info["static"]["state"]) == "failed")):
+        send_slack_message(error_notify_message(str(report_info["dynamic"]["params"]["task"]), str(
+            report_info["dynamic"]["params"]["app"]["package"])))
+        return True
+    if ((str(report_info["dynamic"]["state"]) == "completed") and (str(report_info["static"]["state"]) == "completed")) and (str(report_info["yaap"]["state"]) == "completed"):
+        if notify_success:
+            print "New completed assesssment, waiting then sending report"
+            issue_count = count_errors(task_id)
+            # sends slack message if set to true
+            if slack_summary_active:
+                code = send_slack_message(summary_slack_message(
+                    report_info, issue_count))
+                if code == 200:
+                    print "Slack Message sent successfully"
                 else:
-                    print("successful report, but no message sent")
-                num_assessments = num_assessments + 1
-            else:
-                # There is a new assessment started, but has not completed both dynamic and static
-                print "Assessment in progress, not completed"
-        else:
-            print "No new assessments"
-
-# future functionality
+                    print "Error, slack message not sent - error code " + code
+        return True
 
 
 def time_diff(start_time):
@@ -127,11 +128,16 @@ def error_notify_message(task_id, application_name):
     return slack_data
 
 
-def count_errors(report):
+def count_errors(task_id):
+    report_url = app_url + "/assessment/" + \
+        str(task_id) + "/results?group=" + str(os.environ["GROUP_ID"])
+    r3 = requests.get(report_url, headers=headers)
+    report = json.loads(r3.text)
     high = 0
     low = 0
     medium = 0
     info = 0
+    critical = 0
     # loop through the results and increment issue counters
     try:
         for children in report:
@@ -139,6 +145,9 @@ def count_errors(report):
                 if children["severity"] == "high":
                     high += 1
                     print children["title"] + " found - high risk"
+                if children["severity"] == "critical":
+                    critical += 1
+                    print children["title"] + " found - critical risk"
                 if children["severity"] == "medium":
                     medium += 1
                     print children["title"] + " found - medium risk"
@@ -153,11 +162,11 @@ def count_errors(report):
                 pass
     except:
         pass
-    return {'low': low, 'medium': medium, 'high': high, 'info': info}
+    return {'low': low, 'medium': medium, 'high': high, 'info': info, 'critical': critical}
 
 
 # creates slack message to send as summary of new report
-def summary_slack_message(parsed_report, current_list, num_assessments, issue_count):
+def summary_slack_message(parsed_report, issue_count):
 
     print "Creating message"
     # create the slack message
@@ -171,23 +180,28 @@ def summary_slack_message(parsed_report, current_list, num_assessments, issue_co
         color = "#FFC300"
     if issue_count['high'] > 0:
         color = "#FF0000"
+    if issue_count['critical'] > 0:
+        color = "#8c0101"
     # create the link back to the report
     # need to rework post-RBAC web URL
-    # weburl = web_base_url + app_os + app_package + "/assessment/" + str(current_list[num_assessments]["task"])
-
-    # what slack channel do we want this to go to?
+    weburl = "https://lab.nowsecure.com/app/" + app_id + \
+        "/assessment/" + str(parsed_report["dynamic"]["params"]["task"])
 
     slack_data = {
-        "text": "The " + app_os[1:] + " app " + app_package[1:] + " has just completed an assessment on the NowSecure Auto platform.",
+        "text": "The " + app_os[1:] + " app " + app_package[1:] + " has just completed an assessment on the NowSecure Platform.",
         "channel": slack_channel,
         "attachments": [
             {
                 "fallback": "NowSecure Automation",
                 "title": "Summary results of latest assessment:",
                 "color": color,
-                # "title_link": weburl,
+                "title_link": weburl,
                 # "text": "The following security issues were found:",
                 "fields": [
+                    {
+                        "value": str(issue_count['critical']) + " critical risk",
+                        "short": "true"
+                    },
                     {
                         "value": str(issue_count['high']) + " high risk",
                         "short": "true"
@@ -205,7 +219,7 @@ def summary_slack_message(parsed_report, current_list, num_assessments, issue_co
                         "short": "true"
                     }
                 ],
-                "footer": "<!date^" + str(now) + "^{date} at {time}|Error reading date>"
+                "footer": "<!date^" + str(now) + "^{date} at {time}|Error reading date>  " + weburl
             }
         ]
     }
@@ -219,7 +233,7 @@ def send_slack_message(text_to_send):
     # slack_header = 'Content-type: application/json'
     r4 = requests.post(slack_url, json=text_to_send)
     if r4.status_code != 200:
-        print r4.message
+        print "Slack webhook error " + r4.message
     return r4.status_code
 
 
