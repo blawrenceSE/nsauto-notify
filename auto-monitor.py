@@ -14,7 +14,11 @@ api_base_url = "https://lab-api.nowsecure.com/app"
 app_os = '/' + os.environ["APP_OS"]
 app_package = '/' + os.environ["APP_PACKAGE"]
 slack_channel = os.environ["SLACK_CHANNEL"]
+notify_error = os.environ["NOTIFY_ERROR"]
 notify_success = os.environ["NOTIFY_SUCCESS"]
+# options: medium, high, critical, none
+if notify_success:
+    notify_threshold = os.environ["NOTIFY_THRESHOLD"]
 
 # access
 la_token = os.environ["MONITOR_KEY"]
@@ -27,8 +31,6 @@ app_url = api_base_url + app_os + app_package
 token = "Bearer " + la_token
 headers = {'Authorization': token}
 app_id = ""
-# turn different functionalities on or off
-slack_summary_active = True
 
 
 def change_app_id(id):
@@ -48,35 +50,27 @@ def monitor_for_report():
     completed_assessments = []
     # set app id for URL generation
     change_app_id(assessment_list[0]["application"])
+    # populate whatever has already been done
     for report in assessment_list:
         completed_assessments.append(report["task"])
 
     # set baseline for current assessments
-    num_assessments = len(assessment_list)
     need_processing = []
     # runs continuously
     while True:
-
         # polls the API at a set interval
         time.sleep(5)
         # pulls the list of assessments
         r2 = requests.get(assessment_url, headers=headers)
         current_list = json.loads(r2.text)
-        # check and see if new assessments have been added
-        print "Base assessment: " + str(num_assessments)
-        print "Current assessment: " + str(len(current_list))
-        if len(current_list) > num_assessments:
-            print "New Assessment!"
-            # find new assessment
-            for report in current_list:
-                if (report["task"] not in completed_assessments) and (report["task"] not in need_processing):
-                    need_processing.append(report["task"])
-
-            for task in need_processing:
-                if process_assessment(task):
-                    need_processing.remove(task)
-                    completed_assessments.append(task)
-                    num_assessments = num_assessments + 1
+        for report in current_list:
+            if (report["task"] not in completed_assessments) and (report["task"] not in need_processing):
+                need_processing.append(report["task"])
+        print("waiting to process:" + str(need_processing))
+        for task in need_processing:
+            if process_assessment(task):
+                need_processing.remove(task)
+                completed_assessments.append(task)
 
 
 def process_assessment(task_id):
@@ -93,21 +87,25 @@ def process_assessment(task_id):
         return False
     # checks to see if assessment has taken too long and just errors it out, also looks for static/dynamic failure
     if (time_diff_seconds(str(report_info["dynamic"]["created"])) > 0) or ((str(report_info["dynamic"]["state"]) == "failed") or (str(report_info["static"]["state"]) == "failed")):
-        send_slack_message(error_notify_message(str(report_info["dynamic"]["params"]["task"]), str(
-            report_info["dynamic"]["params"]["app"]["package"])))
+        if(notify_error):
+            send_slack_message(error_notify_message(str(report_info["dynamic"]["params"]["task"]), str(
+                report_info["dynamic"]["params"]["app"]["package"])))
         return True
     if ((str(report_info["dynamic"]["state"]) == "completed") and (str(report_info["static"]["state"]) == "completed")) and (str(report_info["yaap"]["state"]) == "completed"):
         if notify_success:
-            print "New completed assesssment, waiting then sending report"
+            print "New completed assesssment, processing report for Task ID: " + \
+                str(task_id)
             issue_count = count_errors(task_id)
-            # sends slack message if set to true
-            if slack_summary_active:
+            if((notify_threshold == "none") or (notify_threshold == "medium" and (issue_count["medium"] > 0 or issue_count["high"] > 0 or issue_count["critical"]) > 0) or (notify_threshold == "high" and (issue_count["high"] > 0 or issue_count["critical"]) > 0) or (notify_threshold == "critial" and issue_count["critical"] > 0)):
                 code = send_slack_message(summary_slack_message(
                     report_info, issue_count))
                 if code == 200:
                     print "Slack Message sent successfully"
                 else:
                     print "Error, slack message not sent - error code " + code
+            else:
+                print(
+                    "Report did not meet minimum notification threshold, no message sent")
         return True
 
 
@@ -121,7 +119,11 @@ def time_diff(start_time):
 
 
 def error_notify_message(task_id, application_name):
+    weburl = "https://lab.nowsecure.com/app/" + app_id + \
+        "/assessment/" + str(task_id)
     slack_data = {
+        "title": "Click here to view the assessment in question",
+        "title_url": weburl,
         "text": "An application assessment has failed.\nApplication Name: " + application_name + "\nTask ID: " + task_id,
         "channel": slack_channel,
     }
@@ -193,10 +195,10 @@ def summary_slack_message(parsed_report, issue_count):
         "attachments": [
             {
                 "fallback": "NowSecure Automation",
-                "title": "Summary results of latest assessment:",
+                "title": "Click here to view the full report",
                 "color": color,
                 "title_link": weburl,
-                # "text": "The following security issues were found:",
+                "text": "The following security issues were found:",
                 "fields": [
                     {
                         "value": str(issue_count['critical']) + " critical risk",
@@ -219,7 +221,7 @@ def summary_slack_message(parsed_report, issue_count):
                         "short": "true"
                     }
                 ],
-                "footer": "<!date^" + str(now) + "^{date} at {time}|Error reading date>  " + weburl
+                "footer": "<!date^" + str(now) + "^{date} at {time}|Error reading date> "
             }
         ]
     }
