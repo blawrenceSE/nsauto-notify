@@ -59,7 +59,7 @@ def monitor_for_report():
     # runs continuously
     while True:
         # polls the API at a set interval
-        time.sleep(5)
+        time.sleep(60)
         # pulls the list of assessments
         r2 = requests.get(assessment_url, headers=headers)
         current_list = json.loads(r2.text)
@@ -122,9 +122,9 @@ def error_notify_message(task_id, application_name):
     weburl = "https://lab.nowsecure.com/app/" + app_id + \
         "/assessment/" + str(task_id)
     slack_data = {
-        "title": "Click here to view the assessment in question",
+        "title": "An application has failed to complete a full assessment, please click here to view the assessment in question",
         "title_url": weburl,
-        "text": "An application assessment has failed.\nApplication Name: " + application_name + "\nTask ID: " + task_id,
+        "text": "Application Name: " + application_name + "\nTask ID: " + task_id,
         "channel": slack_channel,
     }
     return slack_data
