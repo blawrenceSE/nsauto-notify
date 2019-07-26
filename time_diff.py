@@ -5,6 +5,6 @@ import datetime
 def time_diff_seconds(time1):
     time1 = datetime.datetime.strptime(time1, "%Y-%m-%dT%H:%M:%S.%fZ")
     time2 = datetime.datetime.strptime(
-        datetime.datetime.now(), "%Y-%m-%d %H:%M:%S.%f")
+        str(datetime.datetime.now()), "%Y-%m-%d %H:%M:%S.%f")
     diff = time1 - time2
     return diff.days

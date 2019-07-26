@@ -17,8 +17,7 @@ slack_channel = os.environ["SLACK_CHANNEL"]
 notify_error = os.environ["NOTIFY_ERROR"]
 notify_success = os.environ["NOTIFY_SUCCESS"]
 # options: medium, high, critical, none
-if notify_success:
-    notify_threshold = os.environ["NOTIFY_THRESHOLD"]
+notify_threshold = os.environ["NOTIFY_THRESHOLD"]
 
 # access
 la_token = os.environ["MONITOR_KEY"]
@@ -59,7 +58,7 @@ def monitor_for_report():
     # runs continuously
     while True:
         # polls the API at a set interval
-        time.sleep(60)
+        time.sleep(6)
         # pulls the list of assessments
         r2 = requests.get(assessment_url, headers=headers)
         current_list = json.loads(r2.text)
@@ -124,8 +123,8 @@ def error_notify_message(task_id, application_name):
     slack_data = {
         "title": "An application has failed to complete a full assessment, please click here to view the assessment in question",
         "title_url": weburl,
-        "text": "Application Name: " + application_name + "\nTask ID: " + task_id,
-        "channel": slack_channel,
+        "text": "Application Name: " + application_name + "\nTask ID: " + task_id + " has failed to complete successfully, you may want to investigate",
+        "channel": slack_channel
     }
     return slack_data
 
