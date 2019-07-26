@@ -121,8 +121,6 @@ def error_notify_message(task_id, application_name):
     weburl = "https://lab.nowsecure.com/app/" + app_id + \
         "/assessment/" + str(task_id)
     slack_data = {
-        "title": "An application has failed to complete a full assessment, please click here to view the assessment in question",
-        "title_url": weburl,
         "text": "Application Name: " + application_name + "\nTask ID: " + task_id + " has failed to complete successfully, you may want to investigate",
         "channel": slack_channel
     }
