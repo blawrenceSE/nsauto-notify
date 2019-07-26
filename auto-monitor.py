@@ -58,7 +58,7 @@ def monitor_for_report():
     # runs continuously
     while True:
         # polls the API at a set interval
-        time.sleep(6)
+        time.sleep(60)
         # pulls the list of assessments
         r2 = requests.get(assessment_url, headers=headers)
         current_list = json.loads(r2.text)
@@ -118,8 +118,8 @@ def time_diff(start_time):
 
 
 def error_notify_message(task_id, application_name):
-    weburl = "https://lab.nowsecure.com/app/" + app_id + \
-        "/assessment/" + str(task_id)
+    # weburl = "https://lab.nowsecure.com/app/" + app_id + \
+    #    "/assessment/" + str(task_id)
     slack_data = {
         "text": "Application Name: " + application_name + "\nTask ID: " + task_id + " has failed to complete successfully, you may want to investigate",
         "channel": slack_channel
