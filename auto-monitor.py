@@ -86,22 +86,22 @@ def process_assessment(task_id):
         return False
     # checks to see if assessment has taken too long and just errors it out, also looks for static/dynamic failure
     if (time_diff_seconds(str(report_info["dynamic"]["created"])) > 0) or ((str(report_info["dynamic"]["state"]) == "failed") or (str(report_info["static"]["state"]) == "failed")):
-        if(notify_error):
+        if(notify_error == 'True'):
             send_slack_message(error_notify_message(str(report_info["dynamic"]["params"]["task"]), str(
                 report_info["dynamic"]["params"]["app"]["package"])))
         return True
     if ((str(report_info["dynamic"]["state"]) == "completed") and (str(report_info["static"]["state"]) == "completed")) and (str(report_info["yaap"]["state"]) == "completed"):
-        if notify_success:
-            print "New completed assesssment, processing report for Task ID: " + \
-                str(task_id)
+        if notify_success == 'True':
+            print ("New completed assesssment, processing report for Task ID: " + \
+                str(task_id))
             issue_count = count_errors(task_id)
             if((notify_threshold == "none") or (notify_threshold == "medium" and (issue_count["medium"] > 0 or issue_count["high"] > 0 or issue_count["critical"]) > 0) or (notify_threshold == "high" and (issue_count["high"] > 0 or issue_count["critical"]) > 0) or (notify_threshold == "critial" and issue_count["critical"] > 0)):
                 code = send_slack_message(summary_slack_message(
                     report_info, issue_count))
                 if code == 200:
-                    print "Slack Message sent successfully"
+                    print ("Slack Message sent successfully")
                 else:
-                    print "Error, slack message not sent - error code " + code
+                    print( "Error, slack message not sent - error code " + code)
             else:
                 print(
                     "Report did not meet minimum notification threshold, no message sent")
@@ -143,19 +143,19 @@ def count_errors(task_id):
             try:
                 if children["severity"] == "high":
                     high += 1
-                    print children["title"] + " found - high risk"
+                    print (children["title"] + " found - high risk")
                 if children["severity"] == "critical":
                     critical += 1
-                    print children["title"] + " found - critical risk"
+                    print (children["title"] + " found - critical risk")
                 if children["severity"] == "medium":
                     medium += 1
-                    print children["title"] + " found - medium risk"
+                    print (children["title"] + " found - medium risk")
                 if children["severity"] == "low":
                     low += 1
-                    print children["title"] + " found - low risk"
+                    print (children["title"] + " found - low risk")
                 if children["severity"] == "info":
                     info += 1
-                    print children["title"] + " found - info only"
+                    print (children["title"] + " found - info only")
                 # title = children["title"]
             except:
                 pass
@@ -167,7 +167,7 @@ def count_errors(task_id):
 # creates slack message to send as summary of new report
 def summary_slack_message(parsed_report, issue_count):
 
-    print "Creating message"
+    print ("Creating message")
     # create the slack message
     now = int(time.time())
     color = ""
@@ -232,7 +232,7 @@ def send_slack_message(text_to_send):
     # slack_header = 'Content-type: application/json'
     r4 = requests.post(slack_url, json=text_to_send)
     if r4.status_code != 200:
-        print "Slack webhook error " + r4.message
+        print ("Slack webhook error " + r4.message)
     return r4.status_code
 
 
