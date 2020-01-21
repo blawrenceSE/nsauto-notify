@@ -48,7 +48,11 @@ def monitor_for_report():
     assessment_list = json.loads(r.text)
     completed_assessments = []
     # set app id for URL generation
-    change_app_id(assessment_list[0]["application"])
+    try:
+        change_app_id(assessment_list[0]["application"])
+    except IndexError:
+        print("No assessments for this app yet, exiting until next retry")
+        exit
     # populate whatever has already been done
     for report in assessment_list:
         completed_assessments.append(report["task"])
